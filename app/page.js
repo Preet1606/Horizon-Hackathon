@@ -35,7 +35,7 @@ const SETTINGS = {
   hard: { slots: 6, guesses: 12, multiplier: 2 },
 };
 
-const ImageSequenceAnimator = () => {
+const ImageSequenceAnimator = ({ isMuted }) => {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: -1, pointerEvents: "none" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(4,4,14,0.3)", zIndex: 1 }} />
@@ -43,7 +43,7 @@ const ImageSequenceAnimator = () => {
         src="/bg-animation.mp4"
         autoPlay
         loop
-        muted
+        muted={isMuted}
         playsInline
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
@@ -106,6 +106,7 @@ export default function CipherHue() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [gameHistory, setGameHistory] = useState([]);
@@ -489,6 +490,15 @@ export default function CipherHue() {
             <span>Brightness</span>
           </button>
 
+          <button className="ghost-icon-btn" onClick={() => setIsMuted(!isMuted)} title="Toggle Sound" aria-label="Toggle Sound" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}>
+            {isMuted ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            )}
+            <span>{isMuted ? "Unmute" : "Mute"}</span>
+          </button>
+
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "#ffffff", letterSpacing: "1px" }}>
             <span>MODE:</span>
             <select 
@@ -515,7 +525,7 @@ export default function CipherHue() {
       {/* MAIN MENU */}
       <main className={`screen ${screen === "menu" ? "active" : ""}`}>
         <div className="menu-container">
-          <ImageSequenceAnimator />
+          <ImageSequenceAnimator isMuted={isMuted} />
           <div className="hero-logo-block">
             <h1 className="game-title">
               <span className="title-line">(project cipher)</span>
