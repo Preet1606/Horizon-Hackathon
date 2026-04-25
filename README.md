@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="./public/ezgif-frame-064.jpg" alt="Cipher Hue Banner" width="100%" />
-</p>
+
 
 # Cipher Hue — Mastermind Puzzle Engine
 Algorithmically correct Mastermind-style puzzle game with a two-pass feedback system (exact + partial matches), smooth CSS animations, multiple difficulty levels, and a local leaderboard for tracking performance.
