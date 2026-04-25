@@ -1,4 +1,4 @@
-![Cipher Hue Logo](./public/logo.png)
+![Cipher Hue Logo](./public/ezgif-frame-064.jpg)
 
 # Horizon-Hackathon
 Algorithmically correct Mastermind-style puzzle game with a two-pass feedback system (exact + partial matches), smooth CSS animations, multiple difficulty levels, and a local leaderboard for tracking performance.
