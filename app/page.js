@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const COLOURS = {
   easy: [
@@ -139,11 +139,13 @@ export default function CipherHue() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showCustomModal, setShowCustomModal] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [gameHistory, setGameHistory] = useState([]);
+  const [dashExpandedId, setDashExpandedId] = useState(null); // dashboard row expand
 
   // Custom mode state
-  const [customScreen, setCustomScreen] = useState("setup"); // setup | set | solve
+  const [customScreen, setCustomScreen] = useState("setup");
   const [customSlots, setCustomSlots] = useState(4);
   const [customSecret, setCustomSecret] = useState([]);
   const [customSetterName, setCustomSetterName] = useState("");
@@ -160,6 +162,33 @@ export default function CipherHue() {
       if (hist) setGameHistory(JSON.parse(hist));
     } catch {}
   }, []);
+
+  // Auto-sync Top Agents whenever history changes
+  useEffect(() => {
+    if (gameHistory.length === 0) return;
+    const wins = gameHistory.filter(g => g.result === "WIN" && g.playerName);
+    // Best score per player
+    const bestByPlayer = {};
+    wins.forEach(g => {
+      const key = g.playerName.toUpperCase();
+      if (!bestByPlayer[key] || g.score > bestByPlayer[key].score) {
+        bestByPlayer[key] = { name: key, score: g.score, difficulty: g.difficulty, date: g.date };
+      }
+    });
+    // Merge with existing leaderboard entries (keep any that have no history entry or higher scores)
+    setLeaderboard(prev => {
+      const merged = { ...bestByPlayer };
+      prev.forEach(p => {
+        const key = p.name.toUpperCase();
+        if (!merged[key] || p.score > merged[key].score) {
+          merged[key] = p;
+        }
+      });
+      const newLeaderboard = Object.values(merged).sort((a, b) => b.score - a.score);
+      try { localStorage.setItem("cipherHueLeaderboard", JSON.stringify(newLeaderboard)); } catch {}
+      return newLeaderboard;
+    });
+  }, [gameHistory]);
 
   useEffect(() => {
     let timer;
@@ -181,6 +210,7 @@ export default function CipherHue() {
       if (e.key === "Escape") {
         setShowSaveModal(false);
         setShowHelpModal(false);
+        setShowCustomModal(false);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -256,8 +286,11 @@ export default function CipherHue() {
         timeTaken: elapsed,
         hintsUsed,
         date: new Date().toISOString(),
+        playerName: playerName.trim().toUpperCase() || null,
+        secretCode: secret.map(c => c?.hex),
+        guessRows: [...pastGuesses, currentGuess].map(row => row.map(c => c?.hex)),
       };
-      const newHist = [record, ...gameHistory].slice(0, 50);
+      const newHist = [record, ...gameHistory].slice(0, 100);
       setGameHistory(newHist);
       try { localStorage.setItem("cipherHueHistory", JSON.stringify(newHist)); } catch {}
       setTimeout(() => {
@@ -279,8 +312,11 @@ export default function CipherHue() {
         timeTaken: elapsed,
         hintsUsed,
         date: new Date().toISOString(),
+        playerName: playerName.trim().toUpperCase() || null,
+        secretCode: secret.map(c => c?.hex),
+        guessRows: [...pastGuesses, currentGuess].map(row => row.map(c => c?.hex)),
       };
-      const newHist = [record, ...gameHistory].slice(0, 50);
+      const newHist = [record, ...gameHistory].slice(0, 100);
       setGameHistory(newHist);
       try { localStorage.setItem("cipherHueHistory", JSON.stringify(newHist)); } catch {}
       setTimeout(() => setScreen("loss"), 1000);
@@ -339,11 +375,15 @@ export default function CipherHue() {
   const saveScore = () => {
     const name = playerName.trim().toUpperCase().substring(0, 16) || "ANONYMOUS";
     const score = calculateScore();
-    const newLb = [...leaderboard, { name, score, difficulty, date: new Date().toISOString() }];
-    setLeaderboard(newLb);
-    try {
-      localStorage.setItem("cipherHueLeaderboard", JSON.stringify(newLb));
-    } catch {}
+    // Update the most recent WIN record with the player name so leaderboard syncs
+    const updatedHistory = gameHistory.map((g, i) => {
+      if (i === 0 && g.result === "WIN" && !g.playerName) {
+        return { ...g, playerName: name, score };
+      }
+      return g;
+    });
+    setGameHistory(updatedHistory);
+    try { localStorage.setItem("cipherHueHistory", JSON.stringify(updatedHistory)); } catch {}
     setShowSaveModal(false);
     setPlayerName("");
     setScreen("menu");
@@ -499,11 +539,6 @@ export default function CipherHue() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             <span>Dashboard</span>
           </button>
-
-          <button className="ghost-icon-btn" onClick={() => setShowLeaderboard(true)} title="Leaderboard" aria-label="Leaderboard" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", marginLeft: "8px" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 19.24 7 20v2"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 19.24 17 20v2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            <span>Top Agents</span>
-          </button>
         </div>
         <div className="top-bar-right" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flex: 1 }}>
           <span className="brand-label">FRONTIFY</span>
@@ -542,17 +577,17 @@ export default function CipherHue() {
             ))}
 
             {/* Custom Mode Card */}
-            <button className="difficulty-card" data-difficulty="custom" onClick={() => { setCustomScreen("setup"); setCustomSecret([]); setCustomSetterName(""); setCustomSolverName(""); setCustomSlots(4); setScreen("custom"); }} style={{ borderColor: "rgba(204,0,255,0.3)", background: "linear-gradient(145deg, rgba(204,0,255,0.07) 0%, rgba(8,8,28,0.8) 60%)" }}>
+            <button className="difficulty-card" data-difficulty="custom" onClick={() => { setCustomScreen("setup"); setCustomSecret([]); setCustomSetterName(""); setCustomSolverName(""); setCustomSlots(4); setShowCustomModal(true); }}>
               <div className="card-inner">
-                <div className="card-icon" style={{ background: "rgba(204,0,255,0.12)", border: "1.5px solid rgba(204,0,255,0.35)", boxShadow: "0 0 18px rgba(204,0,255,0.15)" }}>
+                <div className="card-icon card-icon-custom">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
-                <span className="diff-label" style={{ color: "var(--purple)", textShadow: "0 0 20px rgba(204,0,255,0.5)" }}>CUSTOM</span>
+                <span className="diff-label diff-custom">CUSTOM</span>
                 <div className="dot-row">
-                  {[0,1,2,3].map(i => <span key={i} className="dot" style={{ background: "var(--purple)", boxShadow: "0 0 6px rgba(204,0,255,0.6)", animationDelay: `${i*0.2}s` }}/>)}
+                  {[0,1,2,3].map(i => <span key={i} className="dot dot-custom"/>)}
                 </div>
                 <div className="diff-stats">2 PLAYERS · SET PUZZLE · CHALLENGE</div>
-                <span className="card-cta" style={{ color: "var(--purple)", borderColor: "rgba(204,0,255,0.4)" }}>START ›</span>
+                <span className="card-cta">START ›</span>
               </div>
             </button>
           </div>
@@ -576,10 +611,10 @@ export default function CipherHue() {
         </div>
       </main>
 
-      {/* CUSTOM MODE SCREEN */}
-      <main className={`screen ${screen === "custom" ? "active" : ""}`}>
-        <div className="game-container" style={{ maxWidth: "560px" }}>
-
+      {/* CUSTOM MODE MODAL */}
+      <div className={`modal-backdrop ${showCustomModal ? "open" : ""}`} aria-hidden={!showCustomModal} onClick={(e) => { if (e.target.classList.contains('modal-backdrop')) setShowCustomModal(false); }}>
+        <div className="modal-card" style={{ maxWidth: "560px", maxHeight: "90vh", overflow: "auto" }}>
+          
           {/* ── STEP 1: Setup – enter names & slots ── */}
           {customScreen === "setup" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "24px", paddingTop: "20px" }}>
@@ -606,7 +641,7 @@ export default function CipherHue() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: "12px" }}>
-                <button className="action-btn btn-clear" onClick={() => setScreen("menu")} style={{ flex: 1 }}>BACK</button>
+                <button className="action-btn btn-clear" onClick={() => setShowCustomModal(false)} style={{ flex: 1 }}>BACK</button>
                 <button className="action-btn btn-confirm" onClick={() => { setCustomSecret(new Array(customSlots).fill(null)); setCustomScreen("set"); }} disabled={!customSetterName.trim() || !customSolverName.trim()} style={{ flex: 2, background: "linear-gradient(135deg, rgba(204,0,255,0.25), rgba(204,0,255,0.05))", borderColor: "rgba(204,0,255,0.5)", color: "var(--purple)" }}>
                   NEXT → SET PUZZLE
                 </button>
@@ -668,6 +703,7 @@ export default function CipherHue() {
                 </div>
               </div>
               <button className="action-btn btn-confirm" onClick={() => {
+                setShowCustomModal(false);
                 setDifficulty("medium");
                 setMaxGuesses(10);
                 setSlots(customSlots);
@@ -687,7 +723,7 @@ export default function CipherHue() {
             </div>
           )}
         </div>
-      </main>
+      </div>
 
       {/* GAME SCREEN */}
       <main className={`screen ${screen === "game" ? "active" : ""}`}>
@@ -994,16 +1030,18 @@ export default function CipherHue() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: "10px", letterSpacing: "1px" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["#", "RESULT", "MODE", "SCORE", "GUESSES", "TIME", "HINTS", "DATE"].map(h => (
-                        <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "2px", fontSize: "9px" }}>{h}</th>
+                      {["#", "RESULT", "MODE", "SCORE", "GUESSES", "TIME", "HINTS", "DATE", ""].map((h, i) => (
+                        <th key={i} style={{ padding: "8px 10px", textAlign: "left", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "2px", fontSize: "9px" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {gameHistory.map((g, i) => (
-                      <tr key={g.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", transition: "background 0.2s" }}
-                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <React.Fragment key={g.id}>
+                      <tr style={{ borderBottom: dashExpandedId === g.id ? "none" : "1px solid rgba(255,255,255,0.05)", transition: "background 0.2s", cursor: "pointer", background: dashExpandedId === g.id ? "rgba(255,255,255,0.05)" : "transparent" }}
+                        onClick={() => setDashExpandedId(dashExpandedId === g.id ? null : g.id)}
+                        onMouseEnter={e => { if (dashExpandedId !== g.id) e.currentTarget.style.background = "rgba(255,255,255,0.03)"}}
+                        onMouseLeave={e => { if (dashExpandedId !== g.id) e.currentTarget.style.background = "transparent"}}>
                         <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{gameHistory.length - i}</td>
                         <td style={{ padding: "10px 10px" }}>
                           <span style={{ color: g.result === "WIN" ? "var(--green)" : "var(--magenta)", fontWeight: 700, background: g.result === "WIN" ? "rgba(0,255,135,0.1)" : "rgba(255,0,128,0.1)", padding: "2px 8px", borderRadius: "6px", border: `1px solid ${g.result === "WIN" ? "rgba(0,255,135,0.3)" : "rgba(255,0,128,0.3)"}` }}>{g.result}</span>
@@ -1016,7 +1054,77 @@ export default function CipherHue() {
                         <td style={{ padding: "10px 10px", color: "var(--text-body)" }}>{g.timeTaken}s</td>
                         <td style={{ padding: "10px 10px", color: g.hintsUsed > 0 ? "var(--orange)" : "var(--text-muted)" }}>{g.hintsUsed}</td>
                         <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{new Date(g.date).toLocaleDateString()} {new Date(g.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                        <td style={{ padding: "10px 10px", color: "var(--text-muted)", textAlign: "right" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: dashExpandedId === g.id ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
+                        </td>
                       </tr>
+                      {dashExpandedId === g.id && (
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}>
+                          <td colSpan="9" style={{ padding: "16px", background: "rgba(0,0,0,0.2)" }}>
+                            {!g.secretCode ? (
+                              <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px", textAlign: "center" }}>DETAILED DATA UNAVAILABLE FOR OLDER GAMES</div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px" }}>SECRET CODE</div>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  {g.secretCode.map((hex, idx) => (
+                                    <div key={idx} style={{ width: "24px", height: "24px", borderRadius: "50%", background: hex || "var(--border)", boxShadow: hex ? `0 0 8px ${hex}88` : "none" }}></div>
+                                  ))}
+                                </div>
+                                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px", marginTop: "8px" }}>YOUR GUESSES</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                  {g.guessRows?.map((row, rIdx) => {
+                                    let exact = 0, present = 0;
+                                    if (row) {
+                                      const secretRemain = [...g.secretCode];
+                                      const guessRemain = [];
+                                      for (let i = 0; i < row.length; i++) {
+                                        if (row[i] && row[i] === g.secretCode[i]) {
+                                          exact++;
+                                          secretRemain[i] = null;
+                                        } else {
+                                          guessRemain.push(i);
+                                        }
+                                      }
+                                      for (const i of guessRemain) {
+                                        if (!row[i]) continue;
+                                        const idx = secretRemain.findIndex(s => s && s === row[i]);
+                                        if (idx !== -1) {
+                                          present++;
+                                          secretRemain[idx] = null;
+                                        }
+                                      }
+                                    }
+                                    return (
+                                      <div key={rIdx} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                                        <span style={{ fontSize: "9px", color: "var(--text-muted)", width: "16px", textAlign: "right" }}>{rIdx + 1}</span>
+                                        <div style={{ display: "flex", gap: "6px" }}>
+                                          {row.map((hex, cIdx) => (
+                                            <div key={cIdx} style={{ width: "18px", height: "18px", borderRadius: "4px", background: hex || "rgba(255,255,255,0.1)", border: `1px solid ${hex ? "transparent" : "var(--border)"}` }}></div>
+                                          ))}
+                                        </div>
+                                        <div style={{ display: "flex", gap: "4px" }}>
+                                          {Array.from({ length: row.length }).map((_, pIdx) => {
+                                            let bg = "transparent";
+                                            let border = "1px solid rgba(255,255,255,0.1)";
+                                            if (pIdx < exact) {
+                                              bg = "var(--green)"; border = "1px solid var(--green)";
+                                            } else if (pIdx < exact + present) {
+                                              bg = "var(--yellow)"; border = "1px solid var(--yellow)";
+                                            }
+                                            return <div key={pIdx} style={{ width: "6px", height: "6px", borderRadius: "50%", background: bg, border }}></div>;
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
