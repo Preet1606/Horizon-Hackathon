@@ -35,6 +35,55 @@ const SETTINGS = {
   hard: { slots: 6, guesses: 12, multiplier: 2 },
 };
 
+const ImageSequenceAnimator = () => {
+  const [frameIndex, setFrameIndex] = useState(1);
+
+  useEffect(() => {
+    // Preload a few images ahead to prevent flickering
+    const totalFrames = 150;
+    const preloadFrames = 5;
+    
+    let animationFrameId;
+    let lastTime = 0;
+    const fps = 24; // 24 FPS for typical gif/video
+    const interval = 1000 / fps;
+
+    const loop = (time) => {
+      if (!lastTime) lastTime = time;
+      if (time - lastTime >= interval) {
+        setFrameIndex(prev => {
+          const next = (prev % totalFrames) + 1;
+          // Trigger preload
+          for (let i = 1; i <= preloadFrames; i++) {
+            const preloadIndex = ((next + i - 1) % totalFrames) + 1;
+            const img = new Image();
+            img.src = `/cipherhue-anim/ezgif-frame-${String(preloadIndex).padStart(3, "0")}.jpg`;
+          }
+          return next;
+        });
+        lastTime = time;
+      }
+      animationFrameId = requestAnimationFrame(loop);
+    };
+
+    animationFrameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  const formattedIndex = String(frameIndex).padStart(3, "0");
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: -1, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,4,14,0.3)", zIndex: 1 }} />
+      <img
+        src={`/cipherhue-anim/ezgif-frame-${formattedIndex}.jpg`}
+        alt="Cipher Animation"
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
+  );
+};
+
 function generateSecret(difficulty, slots) {
   const colours = COLOURS[difficulty];
   const secret = [];
@@ -88,13 +137,27 @@ export default function CipherHue() {
   
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [playerName, setPlayerName] = useState("");
+  const [gameHistory, setGameHistory] = useState([]);
+
+  // Custom mode state
+  const [customScreen, setCustomScreen] = useState("setup"); // setup | set | solve
+  const [customSlots, setCustomSlots] = useState(4);
+  const [customSecret, setCustomSecret] = useState([]);
+  const [customSetterName, setCustomSetterName] = useState("");
+  const [customSolverName, setCustomSolverName] = useState("");
+  const [customSelectedColour, setCustomSelectedColour] = useState(null);
+
   const canvasRef = useRef(null);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cipherHueLeaderboard");
       if (saved) setLeaderboard(JSON.parse(saved));
+      const hist = localStorage.getItem("cipherHueHistory");
+      if (hist) setGameHistory(JSON.parse(hist));
     } catch {}
   }, []);
 
@@ -182,6 +245,21 @@ export default function CipherHue() {
 
     if (exact === slots) {
       setGameOver(true);
+      const score = calculateScore();
+      const record = {
+        id: Date.now(),
+        result: "WIN",
+        difficulty,
+        score,
+        guessesUsed: currentRow + 1,
+        maxGuesses,
+        timeTaken: elapsed,
+        hintsUsed,
+        date: new Date().toISOString(),
+      };
+      const newHist = [record, ...gameHistory].slice(0, 50);
+      setGameHistory(newHist);
+      try { localStorage.setItem("cipherHueHistory", JSON.stringify(newHist)); } catch {}
       setTimeout(() => {
         setScreen("win");
         launchConfetti();
@@ -191,6 +269,20 @@ export default function CipherHue() {
 
     if (currentRow + 1 >= maxGuesses) {
       setGameOver(true);
+      const record = {
+        id: Date.now(),
+        result: "LOSS",
+        difficulty,
+        score: 0,
+        guessesUsed: maxGuesses,
+        maxGuesses,
+        timeTaken: elapsed,
+        hintsUsed,
+        date: new Date().toISOString(),
+      };
+      const newHist = [record, ...gameHistory].slice(0, 50);
+      setGameHistory(newHist);
+      try { localStorage.setItem("cipherHueHistory", JSON.stringify(newHist)); } catch {}
       setTimeout(() => setScreen("loss"), 1000);
       return;
     }
@@ -370,70 +462,230 @@ export default function CipherHue() {
       <div className="grid-bg" aria-hidden="true" />
 
       <header id="top-bar">
-        <div className="top-bar-left">
-          <span className="brand-label">PS-07 CIPHER</span>
+        <div className="top-bar-left" style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+          <img src="/logo.png" alt="Cipher Hue Logo" style={{ width: "32px", height: "32px", borderRadius: "8px", objectFit: "cover", boxShadow: "0 0 12px rgba(0,245,255,0.3)" }} />
+          <span className="brand-label">CIPHER HUE</span>
         </div>
-        <div className="top-bar-right">
-          <button className="ghost-icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <div className="top-bar-center" style={{ display: "flex", gap: "24px", justifyContent: "center", alignItems: "center", flex: 1 }}>
+          <button className="ghost-icon-btn" onClick={() => setScreen("menu")} title="Home" aria-label="Home" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Home</span>
           </button>
-          <button className="ghost-icon-btn" onClick={() => setShowHelpModal(true)} title="How to Play" aria-label="How to Play">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+
+          <button className="ghost-icon-btn" onClick={() => setShowHelpModal(true)} title="How to Play" aria-label="How to Play" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Instructions</span>
           </button>
-          <button className="ghost-icon-btn" onClick={() => setScreen("menu")} title="Home" aria-label="Home">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+
+          <button className="ghost-icon-btn" title="Toggle Theme" aria-label="Toggle Theme" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <span>Brightness</span>
           </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "#ffffff", letterSpacing: "1px" }}>
+            <span>MODE:</span>
+            <select 
+              onChange={(e) => startGame(e.target.value)}
+              value={difficulty || "easy"}
+              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--cyan)", padding: "4px 8px", borderRadius: "4px", outline: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}
+            >
+              <option value="easy" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>EASY</option>
+              <option value="medium" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>MEDIUM</option>
+              <option value="hard" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>HARD</option>
+            </select>
+          </div>
+
+          <button className="ghost-icon-btn" onClick={() => setShowDashboard(true)} title="Dashboard" aria-label="Dashboard" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", marginLeft: "8px" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Dashboard</span>
+          </button>
+
+          <button className="ghost-icon-btn" onClick={() => setShowLeaderboard(true)} title="Leaderboard" aria-label="Leaderboard" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", marginLeft: "8px" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 19.24 7 20v2"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 19.24 17 20v2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            <span>Top Agents</span>
+          </button>
+        </div>
+        <div className="top-bar-right" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flex: 1 }}>
+          <span className="brand-label">FRONTIFY</span>
         </div>
       </header>
 
       {/* MAIN MENU */}
       <main className={`screen ${screen === "menu" ? "active" : ""}`}>
         <div className="menu-container">
+          <ImageSequenceAnimator />
           <div className="hero-logo-block">
-            <div className="tagline">GAMING · PS-07 · HORIZON26</div>
             <h1 className="game-title">
-              <span className="title-line">PROJECT /</span>
-              <span className="title-line">CIPHER</span>
+              <span className="title-line">(project cipher)</span>
             </h1>
-            <div className="subtitle">MASTERMIND VARIANT · COLOUR DEDUCTION</div>
           </div>
 
-          <div className="difficulty-grid">
-            {["easy", "medium", "hard"].map((diff) => (
+          <div className="difficulty-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", maxWidth: "800px" }}>
+            {[
+              { diff: "easy",   icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)"   strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+              { diff: "medium", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)"    strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> },
+              { diff: "hard",   icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--magenta)" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+            ].map(({ diff, icon }) => (
               <button key={diff} className="difficulty-card" data-difficulty={diff} onClick={() => startGame(diff)}>
                 <div className="card-inner">
+                  <div className={`card-icon card-icon-${diff}`}>{icon}</div>
                   <span className={`diff-label diff-${diff}`}>{diff.toUpperCase()}</span>
                   <div className="dot-row">
                     {Array(SETTINGS[diff].slots).fill(0).map((_, i) => (
                       <span key={i} className={`dot dot-${diff}`}></span>
                     ))}
                   </div>
-                  <div className="diff-stats">{SETTINGS[diff].slots} COLOURS / {SETTINGS[diff].slots} SLOTS / {SETTINGS[diff].guesses} GUESSES</div>
+                  <div className="diff-stats">{SETTINGS[diff].slots} COLOURS · {SETTINGS[diff].slots} SLOTS · {SETTINGS[diff].guesses} GUESSES</div>
+                  <span className="card-cta">START ›</span>
                 </div>
               </button>
             ))}
+
+            {/* Custom Mode Card */}
+            <button className="difficulty-card" data-difficulty="custom" onClick={() => { setCustomScreen("setup"); setCustomSecret([]); setCustomSetterName(""); setCustomSolverName(""); setCustomSlots(4); setScreen("custom"); }} style={{ borderColor: "rgba(204,0,255,0.3)", background: "linear-gradient(145deg, rgba(204,0,255,0.07) 0%, rgba(8,8,28,0.8) 60%)" }}>
+              <div className="card-inner">
+                <div className="card-icon" style={{ background: "rgba(204,0,255,0.12)", border: "1.5px solid rgba(204,0,255,0.35)", boxShadow: "0 0 18px rgba(204,0,255,0.15)" }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <span className="diff-label" style={{ color: "var(--purple)", textShadow: "0 0 20px rgba(204,0,255,0.5)" }}>CUSTOM</span>
+                <div className="dot-row">
+                  {[0,1,2,3].map(i => <span key={i} className="dot" style={{ background: "var(--purple)", boxShadow: "0 0 6px rgba(204,0,255,0.6)", animationDelay: `${i*0.2}s` }}/>)}
+                </div>
+                <div className="diff-stats">2 PLAYERS · SET PUZZLE · CHALLENGE</div>
+                <span className="card-cta" style={{ color: "var(--purple)", borderColor: "rgba(204,0,255,0.4)" }}>START ›</span>
+              </div>
+            </button>
           </div>
 
-          <div className="leaderboard-panel">
-            <div className="leaderboard-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffe600" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 19.24 7 20v2"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 19.24 17 20v2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-              <span>TOP AGENTS — ALL TIME</span>
-            </div>
-            <div className="leaderboard-body">
-              {leaderboard.length === 0 ? (
-                <div className="leaderboard-empty">NO SCORES RECORDED YET. COMPLETE A MISSION TO RANK.</div>
-              ) : (
-                leaderboard.sort((a, b) => b.score - a.score).slice(0, 8).map((entry, i) => (
-                  <div key={i} className="lb-row">
-                    <span className="lb-rank">{["🥇", "🥈", "🥉"][i] || (i + 1)}</span>
-                    <span className="lb-name">{entry.name}</span>
-                    <span className={`lb-badge lb-badge-${entry.difficulty}`}>{entry.difficulty.toUpperCase()}</span>
-                    <span className="lb-score">{entry.score}</span>
-                  </div>
-                ))
-              )}
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div className="leaderboard-panel">
+              <div className="leaderboard-header" style={{ justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00f5ff" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span>ABOUT US</span>
+              </div>
+              <div className="leaderboard-body" style={{ textAlign: "center", paddingTop: "8px", paddingBottom: "4px" }}>
+                <div style={{ color: "var(--text-body)", fontSize: "11px", letterSpacing: "2px", marginBottom: "6px", textTransform: "uppercase" }}>
+                  <span style={{ color: "var(--cyan)", fontWeight: "bold" }}>TEAM NAME:</span> FRONTIFY
+                </div>
+                <div style={{ color: "var(--text-body)", fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase" }}>
+                  <span style={{ color: "var(--cyan)", fontWeight: "bold" }}>MEMBERS:</span> PREET SHAH, HEER SHAH, YASHITA AMBAWAT
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+      </main>
+
+      {/* CUSTOM MODE SCREEN */}
+      <main className={`screen ${screen === "custom" ? "active" : ""}`}>
+        <div className="game-container" style={{ maxWidth: "560px" }}>
+
+          {/* ── STEP 1: Setup – enter names & slots ── */}
+          {customScreen === "setup" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px", paddingTop: "20px" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: "22px", letterSpacing: "6px", color: "var(--purple)", textShadow: "0 0 20px rgba(204,0,255,0.5)", marginBottom: "6px" }}>CUSTOM MODE</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "3px" }}>2 PLAYER · ONE SETS, ONE SOLVES</div>
+              </div>
+              <div className="leaderboard-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "18px" }}>
+                <div>
+                  <label style={{ fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "3px", color: "var(--purple)", display: "block", marginBottom: "8px" }}>PUZZLE SETTER NAME</label>
+                  <input value={customSetterName} onChange={e => setCustomSetterName(e.target.value)} placeholder="Player 1..." style={{ width: "100%", background: "rgba(204,0,255,0.06)", border: "1px solid rgba(204,0,255,0.3)", borderRadius: "8px", padding: "10px 14px", color: "var(--text-body)", fontFamily: "var(--font-mono)", fontSize: "12px", outline: "none", letterSpacing: "2px" }} />
+                </div>
+                <div>
+                  <label style={{ fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "3px", color: "var(--cyan)", display: "block", marginBottom: "8px" }}>PUZZLE SOLVER NAME</label>
+                  <input value={customSolverName} onChange={e => setCustomSolverName(e.target.value)} placeholder="Player 2..." style={{ width: "100%", background: "rgba(0,245,255,0.06)", border: "1px solid rgba(0,245,255,0.3)", borderRadius: "8px", padding: "10px 14px", color: "var(--text-body)", fontFamily: "var(--font-mono)", fontSize: "12px", outline: "none", letterSpacing: "2px" }} />
+                </div>
+                <div>
+                  <label style={{ fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "3px", color: "var(--text-muted)", display: "block", marginBottom: "8px" }}>NUMBER OF COLOURS / SLOTS</label>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    {[3,4,5,6].map(n => (
+                      <button key={n} onClick={() => setCustomSlots(n)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: `1px solid ${customSlots === n ? "rgba(204,0,255,0.7)" : "var(--border)"}`, background: customSlots === n ? "rgba(204,0,255,0.15)" : "transparent", color: customSlots === n ? "var(--purple)" : "var(--text-muted)", fontFamily: "var(--font-heading)", fontSize: "16px", cursor: "pointer", transition: "all 0.2s" }}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button className="action-btn btn-clear" onClick={() => setScreen("menu")} style={{ flex: 1 }}>BACK</button>
+                <button className="action-btn btn-confirm" onClick={() => { setCustomSecret(new Array(customSlots).fill(null)); setCustomScreen("set"); }} disabled={!customSetterName.trim() || !customSolverName.trim()} style={{ flex: 2, background: "linear-gradient(135deg, rgba(204,0,255,0.25), rgba(204,0,255,0.05))", borderColor: "rgba(204,0,255,0.5)", color: "var(--purple)" }}>
+                  NEXT → SET PUZZLE
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 2: Setter builds the secret ── */}
+          {customScreen === "set" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px", paddingTop: "20px" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: "14px", letterSpacing: "4px", color: "var(--purple)", marginBottom: "6px" }}>{customSetterName.toUpperCase()} — SET YOUR PUZZLE</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--text-muted)", letterSpacing: "3px" }}>BUILD THE SECRET CODE · {customSolverName.toUpperCase()} MUST LOOK AWAY</div>
+              </div>
+
+              {/* Secret slots */}
+              <div className="leaderboard-panel" style={{ padding: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
+                  {customSecret.map((c, i) => (
+                    <div key={i} onClick={() => { const ns = [...customSecret]; ns[i] = null; setCustomSecret(ns); }}
+                      style={{ width: "48px", height: "48px", borderRadius: "50%", cursor: "pointer", border: `2px solid ${c ? c.hex : "rgba(204,0,255,0.3)"}`, background: c ? c.hex : "rgba(204,0,255,0.06)", boxShadow: c ? `0 0 14px ${c.hex}88` : "none", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.3)", fontSize: "18px" }}>
+                      {!c && "+"}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--text-muted)", letterSpacing: "3px", textAlign: "center", marginBottom: "14px" }}>SELECT A COLOUR THEN CLICK A SLOT</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center" }}>
+                  {COLOURS.hard.map((c, i) => (
+                    <div key={i} onClick={() => {
+                      const emptyIdx = customSecret.findIndex(s => s === null);
+                      if (emptyIdx === -1) return;
+                      const ns = [...customSecret]; ns[emptyIdx] = c; setCustomSecret(ns);
+                    }} title={c.name}
+                      style={{ width: "36px", height: "36px", borderRadius: "50%", background: c.hex, cursor: "pointer", boxShadow: `0 0 10px ${c.hex}88`, border: "2px solid transparent", transition: "transform 0.15s", transform: "scale(1)" }}
+                      onMouseEnter={e => e.target.style.transform = "scale(1.2)"}
+                      onMouseLeave={e => e.target.style.transform = "scale(1)"} />
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button className="action-btn btn-clear" onClick={() => setCustomScreen("setup")} style={{ flex: 1 }}>BACK</button>
+                <button className="action-btn btn-confirm" onClick={() => setCustomScreen("handover")} disabled={customSecret.some(c => c === null)} style={{ flex: 2, background: "linear-gradient(135deg, rgba(204,0,255,0.25), rgba(204,0,255,0.05))", borderColor: "rgba(204,0,255,0.5)", color: "var(--purple)" }}>
+                  LOCK IN PUZZLE →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3: Handover screen ── */}
+          {customScreen === "handover" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "28px", paddingTop: "40px", textAlign: "center" }}>
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: "18px", letterSpacing: "5px", color: "var(--purple)", marginBottom: "8px" }}>PUZZLE LOCKED</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "3px", lineHeight: "1.8" }}>
+                  HAND THE DEVICE TO<br/>
+                  <span style={{ color: "var(--cyan)", fontSize: "13px" }}>{customSolverName.toUpperCase()}</span><br/>
+                  THEN PRESS START
+                </div>
+              </div>
+              <button className="action-btn btn-confirm" onClick={() => {
+                setDifficulty("medium");
+                setMaxGuesses(10);
+                setSlots(customSlots);
+                setSecret(customSecret);
+                setCurrentRow(0);
+                setCurrentGuess(new Array(customSlots).fill(null));
+                setPastGuesses([]);
+                setSelectedColour(null);
+                setHintsUsed(0);
+                setElapsed(0);
+                setGameOver(false);
+                setHints([]);
+                setScreen("game");
+              }} style={{ background: "linear-gradient(135deg, rgba(204,0,255,0.3), rgba(204,0,255,0.05))", borderColor: "rgba(204,0,255,0.6)", color: "var(--purple)", padding: "14px 40px", fontSize: "12px", letterSpacing: "4px" }}>
+                START CHALLENGE →
+              </button>
+            </div>
+          )}
         </div>
       </main>
 
@@ -661,6 +913,118 @@ export default function CipherHue() {
           <button className="action-btn btn-confirm help-close-btn" onClick={() => setShowHelpModal(false)}>UNDERSTOOD</button>
         </div>
       </div>
+      {/* LEADERBOARD MODAL */}
+      {showLeaderboard && (
+        <div className="modal-overlay" onClick={() => setShowLeaderboard(false)}>
+          <div className="modal-box" style={{ maxWidth: "520px", width: "95vw", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 19.24 7 20v2"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 19.24 17 20v2"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: "15px", letterSpacing: "4px", color: "var(--yellow)" }}>TOP AGENTS</span>
+              </div>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                {leaderboard.length > 0 && (
+                  <button onClick={() => { setLeaderboard([]); localStorage.removeItem("cipherHueLeaderboard"); }} style={{ background: "transparent", border: "1px solid rgba(255,0,128,0.4)", color: "var(--magenta)", fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "2px", padding: "4px 10px", borderRadius: "6px", cursor: "pointer" }}>CLEAR</button>
+                )}
+                <button onClick={() => setShowLeaderboard(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "20px", lineHeight: 1 }}>✕</button>
+              </div>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {leaderboard.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "3px", padding: "40px 0" }}>NO SCORES YET. COMPLETE A MISSION TO RANK.</div>
+              ) : (
+                leaderboard.sort((a, b) => b.score - a.score).slice(0, 20).map((entry, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontFamily: "var(--font-mono)", fontSize: "11px" }}>
+                    <span style={{ width: "28px", textAlign: "center", fontSize: "16px" }}>{["🥇","🥈","🥉"][i] || <span style={{ color: "var(--text-muted)" }}>{i+1}</span>}</span>
+                    <span style={{ flex: 1, color: "var(--text-body)", letterSpacing: "2px" }}>{entry.name}</span>
+                    <span style={{ color: entry.difficulty === "easy" ? "var(--green)" : entry.difficulty === "medium" ? "var(--cyan)" : "var(--magenta)", fontSize: "8px", padding: "2px 8px", borderRadius: "8px", border: `1px solid currentColor`, letterSpacing: "2px" }}>{entry.difficulty?.toUpperCase()}</span>
+                    <span style={{ fontFamily: "var(--font-heading)", fontSize: "14px", fontWeight: 700, color: "var(--yellow)", minWidth: "50px", textAlign: "right" }}>{entry.score}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* DASHBOARD MODAL */}
+      {showDashboard && (
+        <div className="modal-overlay" onClick={() => setShowDashboard(false)}>
+          <div className="modal-box" style={{ maxWidth: "780px", width: "95vw", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: "16px", letterSpacing: "4px", color: "var(--cyan)" }}>PLAYER DASHBOARD</span>
+              </div>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                {gameHistory.length > 0 && (
+                  <button onClick={() => { setGameHistory([]); localStorage.removeItem("cipherHueHistory"); }} style={{ background: "transparent", border: "1px solid rgba(255,0,128,0.4)", color: "var(--magenta)", fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "2px", padding: "4px 10px", borderRadius: "6px", cursor: "pointer" }}>CLEAR</button>
+                )}
+                <button onClick={() => setShowDashboard(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "20px", lineHeight: 1 }}>✕</button>
+              </div>
+            </div>
+
+            {/* Stats summary row */}
+            {gameHistory.length > 0 && (() => {
+              const wins = gameHistory.filter(g => g.result === "WIN").length;
+              const total = gameHistory.length;
+              const bestScore = Math.max(...gameHistory.filter(g => g.result === "WIN").map(g => g.score), 0);
+              const avgTime = Math.round(gameHistory.reduce((a, g) => a + g.timeTaken, 0) / total);
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px", flexShrink: 0 }}>
+                  {[
+                    { label: "GAMES", value: total, color: "var(--cyan)" },
+                    { label: "WIN RATE", value: `${Math.round((wins / total) * 100)}%`, color: "var(--green)" },
+                    { label: "BEST SCORE", value: bestScore, color: "var(--yellow)" },
+                    { label: "AVG TIME", value: `${avgTime}s`, color: "var(--purple)" },
+                  ].map(stat => (
+                    <div key={stat.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "8px", letterSpacing: "3px", color: "var(--text-muted)", marginBottom: "6px" }}>{stat.label}</div>
+                      <div style={{ fontFamily: "var(--font-heading)", fontSize: "20px", fontWeight: 700, color: stat.color }}>{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* History table */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {gameHistory.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "3px", padding: "40px 0" }}>NO GAMES RECORDED YET. COMPLETE A GAME TO SEE STATS.</div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: "10px", letterSpacing: "1px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["#", "RESULT", "MODE", "SCORE", "GUESSES", "TIME", "HINTS", "DATE"].map(h => (
+                        <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "2px", fontSize: "9px" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gameHistory.map((g, i) => (
+                      <tr key={g.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", transition: "background 0.2s" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{gameHistory.length - i}</td>
+                        <td style={{ padding: "10px 10px" }}>
+                          <span style={{ color: g.result === "WIN" ? "var(--green)" : "var(--magenta)", fontWeight: 700, background: g.result === "WIN" ? "rgba(0,255,135,0.1)" : "rgba(255,0,128,0.1)", padding: "2px 8px", borderRadius: "6px", border: `1px solid ${g.result === "WIN" ? "rgba(0,255,135,0.3)" : "rgba(255,0,128,0.3)"}` }}>{g.result}</span>
+                        </td>
+                        <td style={{ padding: "10px 10px" }}>
+                          <span style={{ color: g.difficulty === "easy" ? "var(--green)" : g.difficulty === "medium" ? "var(--cyan)" : "var(--magenta)" }}>{g.difficulty.toUpperCase()}</span>
+                        </td>
+                        <td style={{ padding: "10px 10px", color: "var(--yellow)", fontWeight: 700, fontFamily: "var(--font-heading)" }}>{g.score}</td>
+                        <td style={{ padding: "10px 10px", color: "var(--text-body)" }}>{g.guessesUsed}/{g.maxGuesses}</td>
+                        <td style={{ padding: "10px 10px", color: "var(--text-body)" }}>{g.timeTaken}s</td>
+                        <td style={{ padding: "10px 10px", color: g.hintsUsed > 0 ? "var(--orange)" : "var(--text-muted)" }}>{g.hintsUsed}</td>
+                        <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{new Date(g.date).toLocaleDateString()} {new Date(g.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
