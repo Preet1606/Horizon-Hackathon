@@ -500,13 +500,21 @@ export default function CipherHue() {
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "#ffffff", letterSpacing: "1px" }}>
             <span>MODE:</span>
             <select 
-              onChange={(e) => startGame(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === "custom") {
+                  setCustomScreen("setup"); setCustomSecret([]); setCustomSetterName(""); setCustomSolverName(""); setCustomSlots(4); setShowCustomModal(true);
+                  e.target.value = difficulty || "easy";
+                } else {
+                  startGame(e.target.value);
+                }
+              }}
               value={difficulty || "easy"}
               style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--cyan)", padding: "4px 8px", borderRadius: "4px", outline: "none", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase" }}
             >
               <option value="easy" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>EASY</option>
               <option value="medium" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>MEDIUM</option>
               <option value="hard" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>HARD</option>
+              <option value="custom" style={{ background: "var(--bg-surface)", color: "var(--text-body)" }}>CUSTOM</option>
             </select>
           </div>
 
