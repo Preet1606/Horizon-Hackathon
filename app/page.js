@@ -36,48 +36,15 @@ const SETTINGS = {
 };
 
 const ImageSequenceAnimator = () => {
-  const [frameIndex, setFrameIndex] = useState(1);
-
-  useEffect(() => {
-    // Preload a few images ahead to prevent flickering
-    const totalFrames = 150;
-    const preloadFrames = 5;
-    
-    let animationFrameId;
-    let lastTime = 0;
-    const fps = 24; // 24 FPS for typical gif/video
-    const interval = 1000 / fps;
-
-    const loop = (time) => {
-      if (!lastTime) lastTime = time;
-      if (time - lastTime >= interval) {
-        setFrameIndex(prev => {
-          const next = (prev % totalFrames) + 1;
-          // Trigger preload
-          for (let i = 1; i <= preloadFrames; i++) {
-            const preloadIndex = ((next + i - 1) % totalFrames) + 1;
-            const img = new Image();
-            img.src = `/cipherhue-anim/ezgif-frame-${String(preloadIndex).padStart(3, "0")}.jpg`;
-          }
-          return next;
-        });
-        lastTime = time;
-      }
-      animationFrameId = requestAnimationFrame(loop);
-    };
-
-    animationFrameId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, []);
-
-  const formattedIndex = String(frameIndex).padStart(3, "0");
-
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: -1, pointerEvents: "none" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(4,4,14,0.3)", zIndex: 1 }} />
-      <img
-        src={`/cipherhue-anim/ezgif-frame-${formattedIndex}.jpg`}
-        alt="Cipher Animation"
+      <video
+        src="/bg-animation.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       />
     </div>
