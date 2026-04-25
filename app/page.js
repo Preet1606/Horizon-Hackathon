@@ -104,13 +104,11 @@ export default function CipherHue() {
   
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [gameHistory, setGameHistory] = useState([]);
-  const [dashExpandedId, setDashExpandedId] = useState(null); // dashboard row expand
 
   // Custom mode state
   const [customScreen, setCustomScreen] = useState("setup");
@@ -512,10 +510,6 @@ export default function CipherHue() {
             </select>
           </div>
 
-          <button className="ghost-icon-btn" onClick={() => setShowDashboard(true)} title="Dashboard" aria-label="Dashboard" style={{ width: "auto", padding: "0 8px", gap: "8px", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", marginLeft: "8px" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <span>Dashboard</span>
-          </button>
         </div>
         <div className="top-bar-right" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flex: 1 }}>
           <span className="brand-label">FRONTIFY</span>
@@ -954,157 +948,6 @@ export default function CipherHue() {
                     <span style={{ fontFamily: "var(--font-heading)", fontSize: "14px", fontWeight: 700, color: "var(--yellow)", minWidth: "50px", textAlign: "right" }}>{entry.score}</span>
                   </div>
                 ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {/* DASHBOARD MODAL */}
-      {showDashboard && (
-        <div className="modal-overlay" onClick={() => setShowDashboard(false)}>
-          <div className="modal-box" style={{ maxWidth: "780px", width: "95vw", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                <span style={{ fontFamily: "var(--font-heading)", fontSize: "16px", letterSpacing: "4px", color: "var(--cyan)" }}>PLAYER DASHBOARD</span>
-              </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                {gameHistory.length > 0 && (
-                  <button onClick={() => { setGameHistory([]); localStorage.removeItem("cipherHueHistory"); }} style={{ background: "transparent", border: "1px solid rgba(255,0,128,0.4)", color: "var(--magenta)", fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: "2px", padding: "4px 10px", borderRadius: "6px", cursor: "pointer" }}>CLEAR</button>
-                )}
-                <button onClick={() => setShowDashboard(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "20px", lineHeight: 1 }}>✕</button>
-              </div>
-            </div>
-
-            {/* Stats summary row */}
-            {gameHistory.length > 0 && (() => {
-              const wins = gameHistory.filter(g => g.result === "WIN").length;
-              const total = gameHistory.length;
-              const bestScore = Math.max(...gameHistory.filter(g => g.result === "WIN").map(g => g.score), 0);
-              const avgTime = Math.round(gameHistory.reduce((a, g) => a + g.timeTaken, 0) / total);
-              return (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px", flexShrink: 0 }}>
-                  {[
-                    { label: "GAMES", value: total, color: "var(--cyan)" },
-                    { label: "WIN RATE", value: `${Math.round((wins / total) * 100)}%`, color: "var(--green)" },
-                    { label: "BEST SCORE", value: bestScore, color: "var(--yellow)" },
-                    { label: "AVG TIME", value: `${avgTime}s`, color: "var(--purple)" },
-                  ].map(stat => (
-                    <div key={stat.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px", textAlign: "center" }}>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "8px", letterSpacing: "3px", color: "var(--text-muted)", marginBottom: "6px" }}>{stat.label}</div>
-                      <div style={{ fontFamily: "var(--font-heading)", fontSize: "20px", fontWeight: 700, color: stat.color }}>{stat.value}</div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* History table */}
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              {gameHistory.length === 0 ? (
-                <div style={{ textAlign: "center", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "3px", padding: "40px 0" }}>NO GAMES RECORDED YET. COMPLETE A GAME TO SEE STATS.</div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: "10px", letterSpacing: "1px" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["#", "RESULT", "MODE", "SCORE", "GUESSES", "TIME", "HINTS", "DATE", ""].map((h, i) => (
-                        <th key={i} style={{ padding: "8px 10px", textAlign: "left", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "2px", fontSize: "9px" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gameHistory.map((g, i) => (
-                      <React.Fragment key={g.id}>
-                      <tr style={{ borderBottom: dashExpandedId === g.id ? "none" : "1px solid rgba(255,255,255,0.05)", transition: "background 0.2s", cursor: "pointer", background: dashExpandedId === g.id ? "rgba(255,255,255,0.05)" : "transparent" }}
-                        onClick={() => setDashExpandedId(dashExpandedId === g.id ? null : g.id)}
-                        onMouseEnter={e => { if (dashExpandedId !== g.id) e.currentTarget.style.background = "rgba(255,255,255,0.03)"}}
-                        onMouseLeave={e => { if (dashExpandedId !== g.id) e.currentTarget.style.background = "transparent"}}>
-                        <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{gameHistory.length - i}</td>
-                        <td style={{ padding: "10px 10px" }}>
-                          <span style={{ color: g.result === "WIN" ? "var(--green)" : "var(--magenta)", fontWeight: 700, background: g.result === "WIN" ? "rgba(0,255,135,0.1)" : "rgba(255,0,128,0.1)", padding: "2px 8px", borderRadius: "6px", border: `1px solid ${g.result === "WIN" ? "rgba(0,255,135,0.3)" : "rgba(255,0,128,0.3)"}` }}>{g.result}</span>
-                        </td>
-                        <td style={{ padding: "10px 10px" }}>
-                          <span style={{ color: g.difficulty === "easy" ? "var(--green)" : g.difficulty === "medium" ? "var(--cyan)" : "var(--magenta)" }}>{g.difficulty.toUpperCase()}</span>
-                        </td>
-                        <td style={{ padding: "10px 10px", color: "var(--yellow)", fontWeight: 700, fontFamily: "var(--font-heading)" }}>{g.score}</td>
-                        <td style={{ padding: "10px 10px", color: "var(--text-body)" }}>{g.guessesUsed}/{g.maxGuesses}</td>
-                        <td style={{ padding: "10px 10px", color: "var(--text-body)" }}>{g.timeTaken}s</td>
-                        <td style={{ padding: "10px 10px", color: g.hintsUsed > 0 ? "var(--orange)" : "var(--text-muted)" }}>{g.hintsUsed}</td>
-                        <td style={{ padding: "10px 10px", color: "var(--text-muted)" }}>{new Date(g.date).toLocaleDateString()} {new Date(g.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
-                        <td style={{ padding: "10px 10px", color: "var(--text-muted)", textAlign: "right" }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: dashExpandedId === g.id ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
-                        </td>
-                      </tr>
-                      {dashExpandedId === g.id && (
-                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}>
-                          <td colSpan="9" style={{ padding: "16px", background: "rgba(0,0,0,0.2)" }}>
-                            {!g.secretCode ? (
-                              <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px", textAlign: "center" }}>DETAILED DATA UNAVAILABLE FOR OLDER GAMES</div>
-                            ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px" }}>SECRET CODE</div>
-                                <div style={{ display: "flex", gap: "6px" }}>
-                                  {g.secretCode.map((hex, idx) => (
-                                    <div key={idx} style={{ width: "24px", height: "24px", borderRadius: "50%", background: hex || "var(--border)", boxShadow: hex ? `0 0 8px ${hex}88` : "none" }}></div>
-                                  ))}
-                                </div>
-                                <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", letterSpacing: "2px", marginTop: "8px" }}>YOUR GUESSES</div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                  {g.guessRows?.map((row, rIdx) => {
-                                    let exact = 0, present = 0;
-                                    if (row) {
-                                      const secretRemain = [...g.secretCode];
-                                      const guessRemain = [];
-                                      for (let i = 0; i < row.length; i++) {
-                                        if (row[i] && row[i] === g.secretCode[i]) {
-                                          exact++;
-                                          secretRemain[i] = null;
-                                        } else {
-                                          guessRemain.push(i);
-                                        }
-                                      }
-                                      for (const i of guessRemain) {
-                                        if (!row[i]) continue;
-                                        const idx = secretRemain.findIndex(s => s && s === row[i]);
-                                        if (idx !== -1) {
-                                          present++;
-                                          secretRemain[idx] = null;
-                                        }
-                                      }
-                                    }
-                                    return (
-                                      <div key={rIdx} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                                        <span style={{ fontSize: "9px", color: "var(--text-muted)", width: "16px", textAlign: "right" }}>{rIdx + 1}</span>
-                                        <div style={{ display: "flex", gap: "6px" }}>
-                                          {row.map((hex, cIdx) => (
-                                            <div key={cIdx} style={{ width: "18px", height: "18px", borderRadius: "4px", background: hex || "rgba(255,255,255,0.1)", border: `1px solid ${hex ? "transparent" : "var(--border)"}` }}></div>
-                                          ))}
-                                        </div>
-                                        <div style={{ display: "flex", gap: "4px" }}>
-                                          {Array.from({ length: row.length }).map((_, pIdx) => {
-                                            let bg = "transparent";
-                                            let border = "1px solid rgba(255,255,255,0.1)";
-                                            if (pIdx < exact) {
-                                              bg = "var(--green)"; border = "1px solid var(--green)";
-                                            } else if (pIdx < exact + present) {
-                                              bg = "var(--yellow)"; border = "1px solid var(--yellow)";
-                                            }
-                                            return <div key={pIdx} style={{ width: "6px", height: "6px", borderRadius: "50%", background: bg, border }}></div>;
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
               )}
             </div>
           </div>
