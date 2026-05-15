@@ -123,9 +123,15 @@ export default function CipherHue() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cipherHueLeaderboard");
-      if (saved) setLeaderboard(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setLeaderboard(parsed);
+      }
       const hist = localStorage.getItem("cipherHueHistory");
-      if (hist) setGameHistory(JSON.parse(hist));
+      if (hist) {
+        const parsed = JSON.parse(hist);
+        if (Array.isArray(parsed)) setGameHistory(parsed);
+      }
     } catch {}
   }, []);
 
@@ -254,7 +260,7 @@ export default function CipherHue() {
         date: new Date().toISOString(),
         playerName: playerName.trim().toUpperCase() || null,
         secretCode: secret.map(c => c?.hex),
-        guessRows: [...pastGuesses, currentGuess].map(row => row.map(c => c?.hex)),
+        guessRows: [...pastGuesses.map(g => g.guess), currentGuess].map(row => row.map(c => c?.hex)),
       };
       const newHist = [record, ...gameHistory].slice(0, 100);
       setGameHistory(newHist);
@@ -280,7 +286,7 @@ export default function CipherHue() {
         date: new Date().toISOString(),
         playerName: playerName.trim().toUpperCase() || null,
         secretCode: secret.map(c => c?.hex),
-        guessRows: [...pastGuesses, currentGuess].map(row => row.map(c => c?.hex)),
+        guessRows: [...pastGuesses.map(g => g.guess), currentGuess].map(row => row.map(c => c?.hex)),
       };
       const newHist = [record, ...gameHistory].slice(0, 100);
       setGameHistory(newHist);
@@ -578,11 +584,8 @@ export default function CipherHue() {
                 <span>ABOUT US</span>
               </div>
               <div className="leaderboard-body" style={{ textAlign: "center", paddingTop: "8px", paddingBottom: "4px" }}>
-                <div style={{ color: "var(--text-body)", fontSize: "11px", letterSpacing: "2px", marginBottom: "6px", textTransform: "uppercase" }}>
-                  <span style={{ color: "var(--cyan)", fontWeight: "bold" }}>TEAM NAME:</span> FRONTIFY
-                </div>
                 <div style={{ color: "var(--text-body)", fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase" }}>
-                  <span style={{ color: "var(--cyan)", fontWeight: "bold" }}>MEMBERS:</span> PREET SHAH, HEER SHAH, YASHITA AMBAWAT
+                  <span style={{ color: "var(--cyan)", fontWeight: "bold" }}>TEAM NAME:</span> FRONTIFY
                 </div>
               </div>
             </div>
